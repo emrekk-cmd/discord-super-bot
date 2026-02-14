@@ -1,10 +1,9 @@
-// index.js
 const { Client, GatewayIntentBits } = require("discord.js");
 const OpenAI = require("openai");
 const play = require("play-dl");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require("@discordjs/voice");
 
-// -------------------- Client ve OpenAI --------------------
+// Discord Client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -14,28 +13,24 @@ const client = new Client({
   ],
 });
 
+// OpenAI Client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// -------------------- Token Kontrol --------------------
-console.log("Bot başlatılıyor...");
-console.log("OpenAI Key:", process.env.OPENAI_API_KEY ? "Var ✅" : "Yok ❌");
-console.log("Discord Token:", process.env.DISCORD_TOKEN ? "Var ✅" : "Yok ❌");
-
-// -------------------- Bot Hazır --------------------
+// Bot hazır olduğunda console.log
 client.once("ready", () => {
-  console.log(`Bot online: ${client.user.tag}`);
+  console.log(`Bot aktif: ${client.user.tag}`);
 });
 
-// -------------------- Mesaj Komutları --------------------
+// Komutlar
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  // --- !sor komutu (ChatGPT) ---
+  // !sor komutu
   if (message.content.startsWith("!sor")) {
     const soru = message.content.replace("!sor", "").trim();
-    if (!soru) return message.reply("Sorunu yazmalısın.");
+    if (!soru) return message.reply("Lütfen bir soru yaz!");
 
     try {
       const cevap = await openai.chat.completions.create({
@@ -44,15 +39,19 @@ client.on("messageCreate", async (message) => {
       });
       message.reply(cevap.choices[0].message.content);
     } catch (err) {
-      console.error("OpenAI Hatası:", err);
-      message.reply("OpenAI ile iletişimde bir hata oluştu.");
+      console.error("OpenAI Hatası (!sor):", err);
+      if (err.code === "insufficient_quota" || err.status === 429) {
+        message.reply("OpenAI kotanı aştın veya kredin bitmiş olabilir. Kontrol et.");
+      } else {
+        message.reply("OpenAI ile bağlantı kurulamadı, lütfen sonra tekrar dene.");
+      }
     }
   }
 
-  // --- !resim komutu (Resim Üretimi) ---
+  // !resim komutu
   if (message.content.startsWith("!resim")) {
     const prompt = message.content.replace("!resim", "").trim();
-    if (!prompt) return message.reply("Resim için bir açıklama yazmalısın.");
+    if (!prompt) return message.reply("Lütfen bir resim açıklaması yaz!");
 
     try {
       const img = await openai.images.generate({
@@ -62,18 +61,22 @@ client.on("messageCreate", async (message) => {
       });
       message.reply(img.data[0].url);
     } catch (err) {
-      console.error("OpenAI Resim Hatası:", err);
-      message.reply("Resim oluşturulurken bir hata oluştu.");
+      console.error("OpenAI Hatası (!resim):", err);
+      if (err.code === "insufficient_quota" || err.status === 429) {
+        message.reply("OpenAI kotanı aştın veya kredin bitmiş olabilir. Kontrol et.");
+      } else {
+        message.reply("OpenAI ile bağlantı kurulamadı, lütfen sonra tekrar dene.");
+      }
     }
   }
 
-  // --- !play komutu (Müzik Çalma) ---
+  // !play komutu
   if (message.content.startsWith("!play")) {
     const query = message.content.replace("!play", "").trim();
-    if (!query) return message.reply("Çalmak istediğin şarkıyı yazmalısın.");
+    if (!query) return message.reply("Lütfen bir müzik ismi veya URL yaz!");
 
     const channel = message.member.voice.channel;
-    if (!channel) return message.reply("Önce bir ses kanalına katılmalısın.");
+    if (!channel) return message.reply("Önce bir ses kanalına katıl!");
 
     try {
       const connection = joinVoiceChannel({
@@ -88,13 +91,16 @@ client.on("messageCreate", async (message) => {
 
       connection.subscribe(player);
       player.play(resource);
-      message.reply(`🎶 Şimdi çalıyor: ${query}`);
+
+      message.reply(`🎵 Şimdi çalıyor: ${query}`);
     } catch (err) {
-      console.error("Müzik Hatası:", err);
-      message.reply("Şarkı çalarken bir hata oluştu.");
+      console.error("Müzik Hatası (!play):", err);
+      message.reply("Müzik oynatılamadı. Geçerli bir link veya şarkı adı girildiğinden emin ol.");
     }
   }
 });
 
-// -------------------- Bot Login --------------------
-client.login(process.env.DISCORD_TOKEN);
+// Discord Token ile giriş
+client.login(process.env.DISCORD_TOKEN)
+  .then(() => console.log("Discord token ile giriş başarılı!"))
+  .catch(err => console.error("Discord token hatası:", err));
