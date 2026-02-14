@@ -1,0 +1,11 @@
+{
+  "name": "discord-super-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "openai": "^4.0.0",
+    "@discordjs/voice": "^0.16.0",
+    "play-dl": "^1.9.6"
+  }
+}
