@@ -4,6 +4,7 @@ const OpenAI = require("openai");
 const play = require("play-dl");
 const { joinVoiceChannel, createAudioPlayer, createAudioResource } = require("@discordjs/voice");
 
+// -------------------- Client ve OpenAI --------------------
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -14,64 +15,65 @@ const client = new Client({
 });
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, // OPENAI API anahtarının doğru şekilde ayarlı olduğundan emin ol
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Yardımcı fonksiyon: hataları yakala
-async function tryOpenAI(func, ...args) {
-  try {
-    return await func(...args);
-  } catch (err) {
-    console.error("OpenAI Hatası:", err);
-    return null;
-  }
-}
+// -------------------- Token Kontrol --------------------
+console.log("Bot başlatılıyor...");
+console.log("OpenAI Key:", process.env.OPENAI_API_KEY ? "Var ✅" : "Yok ❌");
+console.log("Discord Token:", process.env.DISCORD_TOKEN ? "Var ✅" : "Yok ❌");
 
+// -------------------- Bot Hazır --------------------
+client.once("ready", () => {
+  console.log(`Bot online: ${client.user.tag}`);
+});
+
+// -------------------- Mesaj Komutları --------------------
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  // CHAT KOMUTU
+  // --- !sor komutu (ChatGPT) ---
   if (message.content.startsWith("!sor")) {
     const soru = message.content.replace("!sor", "").trim();
-    if (!soru) return message.reply("Bir soru yazmalısın.");
+    if (!soru) return message.reply("Sorunu yazmalısın.");
 
-    const cevap = await tryOpenAI(
-      openai.chat.completions.create.bind(openai.chat.completions),
-      {
-        model: "gpt-3.5-turbo", // trial plan ile çalışır
+    try {
+      const cevap = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
         messages: [{ role: "user", content: soru }],
-      }
-    );
-
-    if (!cevap) return message.reply("Bir hata oluştu, tekrar dene.");
-    message.reply(cevap.choices[0].message.content);
+      });
+      message.reply(cevap.choices[0].message.content);
+    } catch (err) {
+      console.error("OpenAI Hatası:", err);
+      message.reply("OpenAI ile iletişimde bir hata oluştu.");
+    }
   }
 
-  // RESİM KOMUTU
+  // --- !resim komutu (Resim Üretimi) ---
   if (message.content.startsWith("!resim")) {
     const prompt = message.content.replace("!resim", "").trim();
-    if (!prompt) return message.reply("Resim için bir konu yazmalısın.");
+    if (!prompt) return message.reply("Resim için bir açıklama yazmalısın.");
 
-    const img = await tryOpenAI(
-      openai.images.generate.bind(openai.images),
-      {
+    try {
+      const img = await openai.images.generate({
         model: "gpt-image-1",
         prompt: prompt,
         size: "1024x1024",
-      }
-    );
-
-    if (!img) return message.reply("Resim oluşturulamadı.");
-    message.reply(img.data[0].url);
+      });
+      message.reply(img.data[0].url);
+    } catch (err) {
+      console.error("OpenAI Resim Hatası:", err);
+      message.reply("Resim oluşturulurken bir hata oluştu.");
+    }
   }
 
-  // MÜZİK KOMUTU
+  // --- !play komutu (Müzik Çalma) ---
   if (message.content.startsWith("!play")) {
     const query = message.content.replace("!play", "").trim();
-    if (!query) return message.reply("Bir şarkı adı yazmalısın.");
+    if (!query) return message.reply("Çalmak istediğin şarkıyı yazmalısın.");
 
     const channel = message.member.voice.channel;
-    if (!channel) return message.reply("Önce ses kanalına gir.");
+    if (!channel) return message.reply("Önce bir ses kanalına katılmalısın.");
 
     try {
       const connection = joinVoiceChannel({
@@ -86,6 +88,7 @@ client.on("messageCreate", async (message) => {
 
       connection.subscribe(player);
       player.play(resource);
+      message.reply(`🎶 Şimdi çalıyor: ${query}`);
     } catch (err) {
       console.error("Müzik Hatası:", err);
       message.reply("Şarkı çalarken bir hata oluştu.");
@@ -93,4 +96,5 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN); // DISCORD_TOKEN doğru şekilde ayarlı olmalı
+// -------------------- Bot Login --------------------
+client.login(process.env.DISCORD_TOKEN);
